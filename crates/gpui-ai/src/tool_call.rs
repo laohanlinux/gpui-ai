@@ -40,7 +40,11 @@ use gpui_component::{
     text::TextView,
     v_flex,
 };
-use std::{rc::Rc, time::Duration};
+use std::{
+    hash::{DefaultHasher, Hash as _, Hasher as _},
+    rc::Rc,
+    time::Duration,
+};
 
 /// Whether a person must allow a tool call before it runs, and what they decided.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -64,6 +68,37 @@ pub enum ToolOutputFormat {
     Markdown,
     /// Raw text where newlines and indentation are part of the result.
     Plain,
+}
+
+/// Follow state for a live tool output scroller.
+struct OutputScroll {
+    scroll: ScrollHandle,
+    revision: Option<u64>,
+    follow: bool,
+}
+
+impl OutputScroll {
+    fn new() -> Self {
+        Self {
+            scroll: ScrollHandle::new(),
+            revision: None,
+            follow: true,
+        }
+    }
+
+    fn observe(&mut self, revision: u64, slack: Pixels) -> bool {
+        self.follow = self.scroll.max_offset().y <= Pixels::ZERO
+            || self.scroll.offset().y + self.scroll.max_offset().y <= slack;
+        let arrived = self.revision != Some(revision);
+        self.revision = Some(revision);
+        arrived && self.follow
+    }
+}
+
+fn output_revision(output: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    output.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Application-owned description of one tool invocation.
@@ -309,6 +344,7 @@ impl RenderOnce for ToolCall {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let tokens = cx.theme().semantic_tokens();
         let open = self.is_open();
+        let live = self.state == ProgressState::Running;
         let id = self.invocation.id.clone();
         let root_id = ElementId::from(id.clone());
         let disclosure = disclosure_progress((root_id.clone(), "disclosure"), open, window, cx);
@@ -556,6 +592,7 @@ impl RenderOnce for ToolCall {
                 )
             })
             .when_some(output, |this, output| {
+                let revision = output_revision(&output);
                 let output_scroll_id = id.clone();
                 let output_content_id = id.clone();
                 let output_text: AnyElement = match output_format {
@@ -585,12 +622,18 @@ impl RenderOnce for ToolCall {
                     );
                 let output = match output_max_height {
                     Some(height) => {
-                        let scroll_handle = window
-                            .use_keyed_state((root_id.clone(), "output-scroll"), cx, |_, _| {
-                                ScrollHandle::new()
-                            })
-                            .read(cx)
-                            .clone();
+                        let output_scroll = window.use_keyed_state(
+                            (root_id.clone(), "output-scroll"),
+                            cx,
+                            |_, _| OutputScroll::new(),
+                        );
+                        let (scroll_handle, follow) = output_scroll.update(cx, |state, _| {
+                            let follow = state.observe(revision, tokens.typography.sm.line_height);
+                            (state.scroll.clone(), follow)
+                        });
+                        if live && follow {
+                            scroll_handle.scroll_to_bottom();
+                        }
                         div()
                             .relative()
                             .w_full()
