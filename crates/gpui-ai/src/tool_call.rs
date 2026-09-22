@@ -528,13 +528,12 @@ impl RenderOnce for ToolCall {
             })
             .when_some(output, |this, output| {
                 let output_scroll_id = id.clone();
-                let output = fenced_output(&output);
+                let output = html_output(&output);
                 let output = inset(cx)
                     .text_token(tokens.typography.sm)
                     .text_color(cx.theme().foreground)
-                    .child(
-                        TextView::markdown((root_id.clone(), "output"), output).selectable(true),
-                    );
+                    .font_family(cx.theme().mono_font_family.clone())
+                    .child(TextView::html((root_id.clone(), "output"), output).selectable(true));
                 let output = match output_max_height {
                     Some(height) => div()
                         .max_h(height)
@@ -871,16 +870,25 @@ fn format_elapsed(elapsed: Duration) -> String {
     }
 }
 
-/// Keep command output line-oriented.
+/// Keep command output line-oriented without putting it through Markdown.
 ///
-/// `TextView::markdown` is the right renderer for rich prose, but plain text
-/// with single newlines would be soft-wrapped into one paragraph. Tool output
-/// is command output, so it is fenced as an untagged code block: newlines and
-/// indentation survive, and no markdown syntax is interpreted.
-fn fenced_output(output: &str) -> String {
-    let longest_run = output.split(|c| c != '`').map(str::len).max().unwrap_or(0);
-    let fence = "`".repeat((longest_run + 1).max(3));
-    format!("{fence}\n{output}\n{fence}")
+/// `TextView::markdown` treats single newlines as soft wraps and would render
+/// command output as one paragraph; turning it into a fenced code block fixes
+/// the lines but adds block indentation. HTML `<pre>` keeps the exact text and
+/// indentation while staying in the output's own inset.
+fn html_output(output: &str) -> String {
+    let mut escaped = String::with_capacity(output.len());
+    for character in output.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            _ => escaped.push(character),
+        }
+    }
+    format!("<pre>{escaped}</pre>")
 }
 
 #[cfg(test)]
