@@ -594,14 +594,15 @@ impl RenderOnce for ToolCall {
                         div()
                             .relative()
                             .w_full()
-                            .h(height)
+                            .max_h(height)
                             .debug_selector(move || {
                                 format!("tool-call-output-scroll-{output_scroll_id}")
                             })
                             .child(
                                 div()
                                     .id((root_id.clone(), "output-scroll-area"))
-                                    .size_full()
+                                    .w_full()
+                                    .max_h(height)
                                     .track_scroll(&scroll_handle)
                                     .overflow_y_scroll()
                                     .child(output),

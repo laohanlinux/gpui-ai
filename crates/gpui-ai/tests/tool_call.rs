@@ -441,6 +441,40 @@ fn output_max_height_scrolls_only_the_output_body(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn output_max_height_does_not_reserve_empty_lines(cx: &mut TestAppContext) {
+    cx.update(gpui_ai::init);
+    cx.update(|cx| cx.set_reduce_motion(true));
+    struct ShortOutput;
+    impl Render for ShortOutput {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl gpui::IntoElement {
+            let call = Progressive::complete(
+                ToolInvocation::new("short-1", "run_command")
+                    .summary("printf")
+                    .output("Done."),
+            );
+            gpui::div().w(px(420.)).h(px(420.)).child(
+                ToolCall::new(&call)
+                    .open(true)
+                    .output_max_height(px(200.))
+                    .output_format(gpui_ai::tool_call::ToolOutputFormat::Plain)
+                    .on_event(|_, _, _| {}),
+            )
+        }
+    }
+    let (_, cx) = cx.add_window_view(|_, _| ShortOutput);
+    let cx: &mut VisualTestContext = cx;
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+
+    let scroll = cx
+        .debug_bounds("tool-call-output-scroll-short-1")
+        .expect("the output region should render");
+    assert!(
+        scroll.size.height < px(100.),
+        "a one-line output must not reserve the maximum height: {scroll:?}"
+    );
+}
+
 /// The failure glyph rides a first-line slot: however far the reason
 /// wraps, the triangle stays centered on the first text line instead of
 /// floating against the block. The slot's own geometry is the proof — its
