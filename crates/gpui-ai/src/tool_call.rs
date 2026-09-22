@@ -27,13 +27,14 @@ use crate::{
 };
 use gpui::{
     AnyElement, App, ClickEvent, ElementId, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement, RenderOnce, Role, SharedString, StatefulInteractiveElement as _,
+    ParentElement, Pixels, RenderOnce, Role, SharedString, StatefulInteractiveElement as _,
     StyleRefinement, Styled, Window, div, prelude::FluentBuilder as _,
 };
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, IconNamed, Sizable as _, StyledExt as _,
     button::{Button, ButtonVariants as _},
     h_flex,
+    scroll::ScrollableElement as _,
     text::TextView,
     v_flex,
 };
@@ -197,6 +198,7 @@ pub struct ToolCall {
     state: ProgressState,
     invocation: ToolInvocation,
     open: Option<bool>,
+    output_max_height: Option<Pixels>,
     on_event: Option<SharedHandler<ToolCallEvent>>,
 }
 
@@ -211,6 +213,7 @@ impl ToolCall {
             state: call.state().clone(),
             invocation: call.content().clone(),
             open: None,
+            output_max_height: None,
             on_event: None,
         }
     }
@@ -218,6 +221,16 @@ impl ToolCall {
     /// Sets the expansion state explicitly, replacing the automatic policy.
     pub fn open(mut self, open: bool) -> Self {
         self.open = Some(open);
+        self
+    }
+
+    /// Caps the output body to this height with its own scrollbar.
+    ///
+    /// The header, input, approval controls, and failure text stay outside the
+    /// scroll region, so a long command result cannot push the rest of the card
+    /// away from the reader.
+    pub fn output_max_height(mut self, height: Pixels) -> Self {
+        self.output_max_height = Some(height);
         self
     }
 
@@ -410,6 +423,7 @@ impl RenderOnce for ToolCall {
         let input = self.invocation.input.clone();
         let input_language = self.invocation.input_language.clone();
         let output = self.invocation.output.clone();
+        let output_max_height = self.output_max_height;
         let body_debug_id = id.clone();
         let body = v_flex()
             .debug_selector(move || format!("tool-call-body-{body_debug_id}"))
@@ -513,15 +527,30 @@ impl RenderOnce for ToolCall {
                 )
             })
             .when_some(output, |this, output| {
-                this.child(eyebrow("Output", cx)).child(
-                    inset(cx)
-                        .text_token(tokens.typography.sm)
-                        .text_color(cx.theme().foreground)
-                        .child(
-                            TextView::markdown((root_id.clone(), "output"), output)
-                                .selectable(true),
-                        ),
-                )
+                let output_scroll_id = id.clone();
+                let output = inset(cx)
+                    .text_token(tokens.typography.sm)
+                    .text_color(cx.theme().foreground)
+                    .child(
+                        TextView::markdown((root_id.clone(), "output"), output).selectable(true),
+                    );
+                let output = match output_max_height {
+                    Some(height) => div()
+                        .max_h(height)
+                        .overflow_y_scrollbar()
+                        .debug_selector(move || {
+                            format!("tool-call-output-scroll-{output_scroll_id}")
+                        })
+                        .child(output)
+                        .into_any_element(),
+                    None => div()
+                        .debug_selector(move || {
+                            format!("tool-call-output-scroll-{output_scroll_id}")
+                        })
+                        .child(output)
+                        .into_any_element(),
+                };
+                this.child(eyebrow("Output", cx)).child(output)
             })
             .when_some(failure.clone(), |this, reason| {
                 // The glyph rides a first-line slot: the row stays

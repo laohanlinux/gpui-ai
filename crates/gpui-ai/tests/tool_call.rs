@@ -380,6 +380,50 @@ fn constrained_card_keeps_its_output_reachable(cx: &mut TestAppContext) {
     assert!(body.bottom() <= card.bottom() + px(1.));
 }
 
+#[gpui::test]
+fn output_max_height_scrolls_only_the_output_body(cx: &mut TestAppContext) {
+    cx.update(gpui_ai::init);
+    cx.update(|cx| cx.set_reduce_motion(true));
+    struct LongOutput;
+    impl Render for LongOutput {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl gpui::IntoElement {
+            let output = (1..=80)
+                .map(|line| format!("line {line:03}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let call = Progressive::complete(
+                ToolInvocation::new("long-1", "run_command")
+                    .summary("cargo test")
+                    .output(output),
+            );
+            gpui::div().w(px(420.)).h(px(420.)).child(
+                ToolCall::new(&call)
+                    .open(true)
+                    .output_max_height(px(96.))
+                    .on_event(|_, _, _| {}),
+            )
+        }
+    }
+    let (_, cx) = cx.add_window_view(|_, _| LongOutput);
+    let cx: &mut VisualTestContext = cx;
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+
+    let scroll = cx
+        .debug_bounds("tool-call-output-scroll-long-1")
+        .expect("the output scroll region should render");
+    assert!(
+        (scroll.size.height - px(96.)).abs() < px(1.),
+        "the output region must honour its own max height: {scroll:?}"
+    );
+    let header = cx
+        .debug_bounds("tool-call-toggle-long-1")
+        .expect("the header should stay outside the output scroll region");
+    assert!(
+        header.bottom() <= scroll.top(),
+        "the header must not be part of the output scroller: {header:?} vs {scroll:?}"
+    );
+}
+
 /// The failure glyph rides a first-line slot: however far the reason
 /// wraps, the triangle stays centered on the first text line instead of
 /// floating against the block. The slot's own geometry is the proof — its
