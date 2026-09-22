@@ -21,8 +21,13 @@ use gpui::{
     Styled, Window, div, prelude::FluentBuilder as _,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, StyledExt as _, clipboard::Clipboard, h_flex, spinner::Spinner,
-    text::TextView, v_flex,
+    ActiveTheme as _, Sizable as _, StyledExt as _,
+    clipboard::Clipboard,
+    h_flex,
+    scroll::{Scrollbar, ScrollbarMode},
+    spinner::Spinner,
+    text::TextView,
+    v_flex,
 };
 use std::{
     hash::{DefaultHasher, Hash as _, Hasher as _},
@@ -148,6 +153,7 @@ pub struct Thinking {
     state: ProgressState,
     trace: ThinkingTrace,
     revision: u64,
+    body_max_height: Option<Pixels>,
     on_event: Option<Handler<ThinkingEvent>>,
 }
 
@@ -164,6 +170,7 @@ impl Thinking {
             state: trace.state().clone(),
             trace: trace.content().clone(),
             revision: trace.revision(),
+            body_max_height: None,
             on_event: None,
         }
     }
@@ -171,6 +178,12 @@ impl Thinking {
     /// Sets the expansion state explicitly, replacing the automatic policy.
     pub fn open(mut self, open: bool) -> Self {
         self.open = Some(open);
+        self
+    }
+
+    /// Caps the reasoning body and gives it its own scrollbar.
+    pub fn body_max_height(mut self, height: Pixels) -> Self {
+        self.body_max_height = Some(height);
         self
     }
 
@@ -318,6 +331,7 @@ impl RenderOnce for Thinking {
         };
         let trace_id = self.id.clone();
         let prose_to_copy = self.trace.prose.clone();
+        let body_max_height = self.body_max_height;
         let root_id = ElementId::from(self.id.clone());
         let motion = MotionTokens::read(cx).clone();
 
@@ -509,15 +523,66 @@ impl RenderOnce for Thinking {
                     scroll.scroll_to_bottom();
                 }
                 div()
+                    .relative()
                     .id((root_id.clone(), "live-preview"))
                     .debug_selector(|| format!("thinking-live-preview-{trace_id}"))
                     .max_h(tokens.spacing.xxl * 4.0)
                     .overflow_y_scroll()
                     .track_scroll(scroll)
                     .child(body)
+                    .child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .child(crate::scrolling::handle_scroll_mask(scroll)),
+                    )
+                    .child(
+                        div().absolute().inset_0().child(
+                            Scrollbar::vertical(scroll)
+                                .mode(ScrollbarMode::Always)
+                                .viewport_from_layout(),
+                        ),
+                    )
                     .into_any_element()
             }
-            None => body.into_any_element(),
+            None => match body_max_height {
+                Some(height) => {
+                    let scroll = window
+                        .use_keyed_state((root_id.clone(), "body-scroll"), cx, |_, _| {
+                            ScrollHandle::new()
+                        })
+                        .read(cx)
+                        .clone();
+                    div()
+                        .relative()
+                        .w_full()
+                        .max_h(height)
+                        .child(
+                            div()
+                                .id((root_id.clone(), "body-scroll-area"))
+                                .w_full()
+                                .max_h(height)
+                                .track_scroll(&scroll)
+                                .overflow_y_scroll()
+                                .child(body),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .child(crate::scrolling::handle_scroll_mask(&scroll)),
+                        )
+                        .child(
+                            div().absolute().inset_0().child(
+                                Scrollbar::vertical(&scroll)
+                                    .mode(ScrollbarMode::Always)
+                                    .viewport_from_layout(),
+                            ),
+                        )
+                        .into_any_element()
+                }
+                None => body.into_any_element(),
+            },
         };
 
         v_flex()

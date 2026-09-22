@@ -608,6 +608,12 @@ impl RenderOnce for ToolCall {
                                     .child(output),
                             )
                             .child(
+                                div()
+                                    .absolute()
+                                    .inset_0()
+                                    .child(crate::scrolling::handle_scroll_mask(&scroll_handle)),
+                            )
+                            .child(
                                 div().absolute().inset_0().child(
                                     Scrollbar::vertical(&scroll_handle)
                                         .mode(ScrollbarMode::Always)

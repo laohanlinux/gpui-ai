@@ -37,7 +37,8 @@
 //! ```
 
 use gpui::{
-    HitboxBehavior, IntoElement as _, ListState, Pixels, ScrollWheelEvent, Styled as _, canvas, px,
+    HitboxBehavior, IntoElement as _, ListState, Pixels, ScrollHandle, ScrollWheelEvent,
+    Styled as _, canvas, point, px,
 };
 
 /// When a scrollable surface shows its scrollbar.
@@ -303,6 +304,38 @@ pub(crate) fn list_scroll_mask(state: &ListState) -> impl gpui::IntoElement {
                 let leaving_tail = delta_y > Pixels::ZERO && state.is_following_tail();
                 if !leaving_tail && ScrollRoom::from_list_state(&state).can_absorb(delta_y) {
                     state.scroll_by(-delta_y);
+                    cx.notify(view_id);
+                    cx.stop_propagation();
+                }
+            });
+        },
+    )
+    .absolute()
+    .inset_0()
+    .into_any_element()
+}
+
+/// The same capture behavior for a plain [`ScrollHandle`] scroll area.
+///
+/// Nested card scroll areas sit below the transcript scroller, whose capture
+/// handler may run first. This mask moves the card directly while it has room
+/// and releases the event at either edge so ordinary scroll chaining resumes.
+pub(crate) fn handle_scroll_mask(handle: &ScrollHandle) -> impl gpui::IntoElement {
+    let handle = handle.clone();
+    canvas(
+        |bounds, window, _| window.insert_hitbox(bounds, HitboxBehavior::Normal),
+        move |_, hitbox, window, _| {
+            let view_id = window.current_view();
+            let hitbox_id = hitbox.id;
+            let handle = handle.clone();
+            window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
+                if !(phase.capture() && hitbox_id.should_handle_scroll(window)) {
+                    return;
+                }
+                let delta_y = event.delta.pixel_delta(window.line_height()).y;
+                if ScrollRoom::from_handle(&handle).can_absorb(delta_y) {
+                    let offset = handle.offset();
+                    handle.set_offset(point(offset.x, offset.y + delta_y));
                     cx.notify(view_id);
                     cx.stop_propagation();
                 }
