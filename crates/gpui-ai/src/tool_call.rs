@@ -27,14 +27,15 @@ use crate::{
 };
 use gpui::{
     AnyElement, App, ClickEvent, ElementId, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement, Pixels, RenderOnce, Role, SharedString, StatefulInteractiveElement as _,
-    StyleRefinement, Styled, Window, div, prelude::FluentBuilder as _,
+    ParentElement, Pixels, RenderOnce, Role, ScrollHandle, SharedString,
+    StatefulInteractiveElement as _, StyleRefinement, Styled, Window, div,
+    prelude::FluentBuilder as _,
 };
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, IconNamed, Sizable as _, StyledExt as _,
     button::{Button, ButtonVariants as _},
     h_flex,
-    scroll::ScrollableElement as _,
+    scroll::{Scrollbar, ScrollbarMode},
     text::TextView,
     v_flex,
 };
@@ -547,30 +548,64 @@ impl RenderOnce for ToolCall {
             })
             .when_some(output, |this, output| {
                 let output_scroll_id = id.clone();
+                let output_content_id = id.clone();
+                let output_text: AnyElement = match output_format {
+                    ToolOutputFormat::Plain => {
+                        TextView::html((root_id.clone(), "output"), html_output(&output))
+                            .selectable(true)
+                            .into_any_element()
+                    }
+                    ToolOutputFormat::Markdown => {
+                        TextView::markdown((root_id.clone(), "output"), output)
+                            .selectable(true)
+                            .into_any_element()
+                    }
+                };
                 let output = inset(cx)
                     .text_token(tokens.typography.sm)
                     .text_color(cx.theme().foreground)
                     .when(output_format == ToolOutputFormat::Plain, |this| {
-                        this.font_family(cx.theme().mono_font_family.clone()).child(
-                            TextView::html((root_id.clone(), "output"), html_output(&output))
-                                .selectable(true),
-                        )
+                        this.font_family(cx.theme().mono_font_family.clone())
                     })
-                    .when(output_format == ToolOutputFormat::Markdown, |this| {
-                        this.child(
-                            TextView::markdown((root_id.clone(), "output"), output)
-                                .selectable(true),
-                        )
-                    });
+                    .child(
+                        div()
+                            .debug_selector(move || {
+                                format!("tool-call-output-content-{output_content_id}")
+                            })
+                            .child(output_text),
+                    );
                 let output = match output_max_height {
-                    Some(height) => div()
-                        .max_h(height)
-                        .overflow_y_scrollbar()
-                        .debug_selector(move || {
-                            format!("tool-call-output-scroll-{output_scroll_id}")
-                        })
-                        .child(output)
-                        .into_any_element(),
+                    Some(height) => {
+                        let scroll_handle = window
+                            .use_keyed_state((root_id.clone(), "output-scroll"), cx, |_, _| {
+                                ScrollHandle::new()
+                            })
+                            .read(cx)
+                            .clone();
+                        div()
+                            .relative()
+                            .w_full()
+                            .h(height)
+                            .debug_selector(move || {
+                                format!("tool-call-output-scroll-{output_scroll_id}")
+                            })
+                            .child(
+                                div()
+                                    .id((root_id.clone(), "output-scroll-area"))
+                                    .size_full()
+                                    .track_scroll(&scroll_handle)
+                                    .overflow_y_scroll()
+                                    .child(output),
+                            )
+                            .child(
+                                div().absolute().inset_0().child(
+                                    Scrollbar::vertical(&scroll_handle)
+                                        .mode(ScrollbarMode::Always)
+                                        .viewport_from_layout(),
+                                ),
+                            )
+                            .into_any_element()
+                    }
                     None => div()
                         .debug_selector(move || {
                             format!("tool-call-output-scroll-{output_scroll_id}")

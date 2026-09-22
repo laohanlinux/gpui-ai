@@ -1,7 +1,7 @@
 use gpui::{
     Context, Element as _, IntoElement as _, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers,
-    ParentElement as _, Render, RenderOnce as _, Role, Styled as _, TestAppContext,
-    VisualTestContext, Window, accesskit, canvas, px,
+    ParentElement as _, Render, RenderOnce as _, Role, ScrollDelta, ScrollWheelEvent, Styled as _,
+    TestAppContext, VisualTestContext, Window, accesskit, canvas, point, px,
 };
 use gpui_ai::{
     stream::Progressive,
@@ -421,6 +421,23 @@ fn output_max_height_scrolls_only_the_output_body(cx: &mut TestAppContext) {
     assert!(
         header.bottom() <= scroll.top(),
         "the header must not be part of the output scroller: {header:?} vs {scroll:?}"
+    );
+
+    let before = cx
+        .debug_bounds("tool-call-output-content-long-1")
+        .expect("the output content should render");
+    cx.simulate_event(ScrollWheelEvent {
+        position: point(scroll.left() + px(5.), scroll.top() + px(5.)),
+        delta: ScrollDelta::Pixels(point(px(0.), px(-500.))),
+        ..Default::default()
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let after = cx
+        .debug_bounds("tool-call-output-content-long-1")
+        .expect("the output content should stay mounted while scrolling");
+    assert!(
+        after.top() < before.top(),
+        "wheel scrolling must reveal later output lines: {before:?} -> {after:?}"
     );
 }
 
