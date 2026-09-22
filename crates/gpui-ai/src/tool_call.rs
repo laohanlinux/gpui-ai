@@ -528,6 +528,7 @@ impl RenderOnce for ToolCall {
             })
             .when_some(output, |this, output| {
                 let output_scroll_id = id.clone();
+                let output = fenced_output(&output);
                 let output = inset(cx)
                     .text_token(tokens.typography.sm)
                     .text_color(cx.theme().foreground)
@@ -868,6 +869,18 @@ fn format_elapsed(elapsed: Duration) -> String {
         let rest = secs as u64 % 60;
         format!("{minutes}m {rest:02}s")
     }
+}
+
+/// Keep command output line-oriented.
+///
+/// `TextView::markdown` is the right renderer for rich prose, but plain text
+/// with single newlines would be soft-wrapped into one paragraph. Tool output
+/// is command output, so it is fenced as an untagged code block: newlines and
+/// indentation survive, and no markdown syntax is interpreted.
+fn fenced_output(output: &str) -> String {
+    let longest_run = output.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let fence = "`".repeat((longest_run + 1).max(3));
+    format!("{fence}\n{output}\n{fence}")
 }
 
 #[cfg(test)]
