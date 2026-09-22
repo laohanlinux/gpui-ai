@@ -54,6 +54,16 @@ pub enum ToolApproval {
     Rejected,
 }
 
+/// How a tool result should be rendered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ToolOutputFormat {
+    /// Rich text and code produced as Markdown.
+    #[default]
+    Markdown,
+    /// Raw text where newlines and indentation are part of the result.
+    Plain,
+}
+
 /// Application-owned description of one tool invocation.
 ///
 /// The lifecycle (pending, running, complete, failed) comes from the
@@ -199,6 +209,7 @@ pub struct ToolCall {
     invocation: ToolInvocation,
     open: Option<bool>,
     output_max_height: Option<Pixels>,
+    output_format: ToolOutputFormat,
     on_event: Option<SharedHandler<ToolCallEvent>>,
 }
 
@@ -214,6 +225,7 @@ impl ToolCall {
             invocation: call.content().clone(),
             open: None,
             output_max_height: None,
+            output_format: ToolOutputFormat::default(),
             on_event: None,
         }
     }
@@ -231,6 +243,12 @@ impl ToolCall {
     /// away from the reader.
     pub fn output_max_height(mut self, height: Pixels) -> Self {
         self.output_max_height = Some(height);
+        self
+    }
+
+    /// Chooses whether output is rendered as Markdown or preformatted text.
+    pub fn output_format(mut self, format: ToolOutputFormat) -> Self {
+        self.output_format = format;
         self
     }
 
@@ -424,6 +442,7 @@ impl RenderOnce for ToolCall {
         let input_language = self.invocation.input_language.clone();
         let output = self.invocation.output.clone();
         let output_max_height = self.output_max_height;
+        let output_format = self.output_format;
         let body_debug_id = id.clone();
         let body = v_flex()
             .debug_selector(move || format!("tool-call-body-{body_debug_id}"))
@@ -528,12 +547,21 @@ impl RenderOnce for ToolCall {
             })
             .when_some(output, |this, output| {
                 let output_scroll_id = id.clone();
-                let output = html_output(&output);
                 let output = inset(cx)
                     .text_token(tokens.typography.sm)
                     .text_color(cx.theme().foreground)
-                    .font_family(cx.theme().mono_font_family.clone())
-                    .child(TextView::html((root_id.clone(), "output"), output).selectable(true));
+                    .when(output_format == ToolOutputFormat::Plain, |this| {
+                        this.font_family(cx.theme().mono_font_family.clone()).child(
+                            TextView::html((root_id.clone(), "output"), html_output(&output))
+                                .selectable(true),
+                        )
+                    })
+                    .when(output_format == ToolOutputFormat::Markdown, |this| {
+                        this.child(
+                            TextView::markdown((root_id.clone(), "output"), output)
+                                .selectable(true),
+                        )
+                    });
                 let output = match output_max_height {
                     Some(height) => div()
                         .max_h(height)

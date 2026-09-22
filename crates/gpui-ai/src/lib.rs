@@ -166,6 +166,7 @@ pub mod prelude {
     pub use crate::todo_list::{TodoItem, TodoList, TodoListEvent, TodoStatus};
     pub use crate::tool_call::{
         ToolApproval, ToolCall, ToolCallEvent, ToolGroup, ToolGroupEvent, ToolInvocation,
+        ToolOutputFormat,
     };
     pub use crate::voice::{VoiceControls, VoiceEvent, VoiceState};
 }
