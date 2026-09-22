@@ -34,6 +34,7 @@ use gpui::{
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, IconNamed, Sizable as _, StyledExt as _,
     button::{Button, ButtonVariants as _},
+    clipboard::Clipboard,
     h_flex,
     scroll::{Scrollbar, ScrollbarMode},
     text::TextView,
@@ -326,6 +327,7 @@ impl RenderOnce for ToolCall {
         let accessibility_label = self.accessibility_label();
         let interactive = self.on_event.is_some();
         let handler = self.on_event.clone();
+        let output_to_copy = self.invocation.output.clone();
         let approval = self.invocation.approval;
         let failure = match &self.state {
             ProgressState::Failed(reason) => Some(reason.clone()),
@@ -390,6 +392,13 @@ impl RenderOnce for ToolCall {
             })
             .when_some(self.invocation.elapsed, |this, elapsed| {
                 this.child(meta(format_elapsed(elapsed), cx).flex_none())
+            })
+            .when_some(output_to_copy, |this, output| {
+                this.child(
+                    Clipboard::new((root_id.clone(), "copy-output"))
+                        .tooltip("Copy output")
+                        .value(output),
+                )
             })
             .child(badge)
             .when(interactive, |this| {

@@ -21,8 +21,8 @@ use gpui::{
     Styled, Window, div, prelude::FluentBuilder as _,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, StyledExt as _, h_flex, spinner::Spinner, text::TextView,
-    v_flex,
+    ActiveTheme as _, Sizable as _, StyledExt as _, clipboard::Clipboard, h_flex, spinner::Spinner,
+    text::TextView, v_flex,
 };
 use std::{
     hash::{DefaultHasher, Hash as _, Hasher as _},
@@ -317,6 +317,7 @@ impl RenderOnce for Thinking {
             _ => None,
         };
         let trace_id = self.id.clone();
+        let prose_to_copy = self.trace.prose.clone();
         let root_id = ElementId::from(self.id.clone());
         let motion = MotionTokens::read(cx).clone();
 
@@ -365,7 +366,14 @@ impl RenderOnce for Thinking {
                 Shimmer::new((root_id.clone(), "title"), title.clone())
                     .active(live)
                     .text_token(tokens.typography.sm),
-            );
+            )
+            .when_some(prose_to_copy, |this, prose| {
+                this.child(
+                    Clipboard::new((root_id.clone(), "copy-thinking"))
+                        .tooltip("Copy thinking")
+                        .value(prose),
+                )
+            });
         let toggle = match self.on_event {
             Some(handler) => composed_button(format!("{}-toggle", self.id), title.clone())
                 .aria_expanded(open)
