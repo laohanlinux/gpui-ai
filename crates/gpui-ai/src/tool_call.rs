@@ -248,6 +248,8 @@ pub struct ToolCall {
     output_max_height: Option<Pixels>,
     output_format: ToolOutputFormat,
     on_event: Option<SharedHandler<ToolCallEvent>>,
+    /// Caller content rendered inside the card, below its own body.
+    children: Vec<AnyElement>,
 }
 
 impl ToolCall {
@@ -264,6 +266,7 @@ impl ToolCall {
             output_max_height: None,
             output_format: ToolOutputFormat::default(),
             on_event: None,
+            children: Vec::new(),
         }
     }
 
@@ -284,6 +287,19 @@ impl ToolCall {
     }
 
     /// Chooses whether output is rendered as Markdown or preformatted text.
+    /// Appends caller content inside the card, below its own body.
+    ///
+    /// A card owns its frame, so anything that belongs *inside* it — an
+    /// approval gate the call raised, an ask form, a notice about this
+    /// invocation — is handed here rather than stacked as a second card
+    /// underneath it. Unlike the disclosure body this content is always
+    /// visible: it is usually the reason the card is on screen at all.
+    pub fn children(mut self, children: impl IntoIterator<Item = AnyElement>) -> Self {
+        self.children.extend(children);
+        self
+    }
+
+    /// Sets the output format for the body.
     pub fn output_format(mut self, format: ToolOutputFormat) -> Self {
         self.output_format = format;
         self
@@ -456,7 +472,9 @@ impl RenderOnce for ToolCall {
                     .aria_expanded(open)
                     .w_full()
                     .px(tokens.spacing.md)
-                    .py(tokens.spacing.sm)
+                    // One step tighter than the card body's spacing: a column
+                    // of these rows reads as a list, not as a stack of boxes.
+                    .py(tokens.spacing.xs)
                     .border_1()
                     .border_color(cx.theme().transparent)
                     // The header's states are drawn inside the card's own
@@ -481,7 +499,7 @@ impl RenderOnce for ToolCall {
             }
             None => header
                 .px(tokens.spacing.md)
-                .py(tokens.spacing.sm)
+                .py(tokens.spacing.xs)
                 .into_any_element(),
         };
 
@@ -735,6 +753,9 @@ impl RenderOnce for ToolCall {
                     .debug_selector(move || format!("tool-call-disclosure-clip-{clip_debug_id}")),
                 )
             })
+            // Always visible, collapsed or not: content handed to the card is
+            // usually the reason the card is on screen at all.
+            .children(self.children)
             .refine_style(&self.style)
     }
 }

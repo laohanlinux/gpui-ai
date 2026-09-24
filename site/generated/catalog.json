@@ -3,7 +3,7 @@
   "hero": {
     "slug": "guided-demo",
     "title": "Guided demo",
-    "height": 726,
+    "height": 710,
     "windowTitle": "Guided demo — gpui-ai",
     "siteOnly": true
   },
@@ -197,7 +197,7 @@
         "note": "One invocation: name, summary, status, and on expansion the input sent, the output returned or the reason it failed, with Allow and Deny where a person has to decide. Groups fold a burst of them."
       },
       "usage": "ToolCall::new(&call_progress)",
-      "height": 650,
+      "height": 618,
       "windowTitle": "Tool calls — gpui-ai",
       "variants": [],
       "events": [
