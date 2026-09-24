@@ -185,7 +185,7 @@ pub const TABLE_STORY_VARIANTS: &[(&str, &str)] = &[
 /// finished answer, not the composer the demo opens on. The
 /// `the_hero_height_matches_what_the_settled_demo_measures` test fails when
 /// the script changes shape and this number does not.
-pub const HERO_HEIGHT: u32 = 730;
+pub const HERO_HEIGHT: u32 = 726;
 
 /// Which way a story's content outgrows the frame it is shown in.
 ///
@@ -520,7 +520,7 @@ impl StoryId {
                 lineage_basis: "",
                 lineage_note: "One invocation: name, summary, status, and on expansion the input sent, the output returned or the reason it failed, with Allow and Deny where a person has to decide. Groups fold a burst of them.",
                 usage: crate::usage::TOOL_CALL,
-                height: 654,
+                height: 650,
                 width: StoryWidth::Column,
                 overflow: Overflow::Vertical,
             },
@@ -546,7 +546,7 @@ impl StoryId {
                 lineage_basis: "",
                 lineage_note: "A reasoning trace that opens itself while it runs, follows the newest steps, holds the reader's place when they scroll back, and collapses to a single line when it settles.",
                 usage: crate::usage::THINKING,
-                height: 306,
+                height: 260,
                 width: StoryWidth::Column,
                 overflow: Overflow::Wide,
             },

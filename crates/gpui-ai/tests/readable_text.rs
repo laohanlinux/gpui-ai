@@ -317,7 +317,10 @@ fn select_text(surface: Surface, cx: &mut TestAppContext) -> String {
             bounds.top() + bounds.size.height * 0.68,
         ),
         Surface::ThinkingProse => (
-            bounds.left() + px(21.),
+            // Left of the first glyph. The card's own inset is fixed, but the
+            // prose runs one type step smaller than it once did, so a start
+            // that used to land on the leading character now lands past it.
+            bounds.left() + px(18.),
             bounds.top() + bounds.size.height * 0.70,
         ),
         Surface::ThinkingDetail => (

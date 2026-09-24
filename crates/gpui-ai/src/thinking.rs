@@ -351,7 +351,7 @@ impl RenderOnce for Thinking {
                 LivePreview::new()
             });
             let (scroll, follow) = preview.update(cx, |state, cx| {
-                let follow = state.observe(revision, tokens.typography.sm.line_height);
+                let follow = state.observe(revision, tokens.typography.xs.line_height);
                 state.note_steps(
                     self.trace
                         .steps
@@ -368,10 +368,15 @@ impl RenderOnce for Thinking {
         });
 
         let interactive = self.on_event.is_some();
+        // `w_full` is what keeps the summary at the leading edge: the toggle
+        // below is a button, and a button centres whatever it is handed, so a
+        // content-width header would sit in the middle of the card.
         let header = h_flex()
+            .w_full()
+            .min_w_0()
             .items_center()
             .gap(tokens.spacing.sm)
-            .text_token(tokens.typography.sm)
+            .text_token(tokens.typography.xs)
             .text_color(cx.theme().muted_foreground)
             .when(interactive, |this| {
                 this.child(crate::surface::disclosure_chevron(disclosure))
@@ -379,8 +384,10 @@ impl RenderOnce for Thinking {
             .child(
                 Shimmer::new((root_id.clone(), "title"), title.clone())
                     .active(live)
-                    .text_token(tokens.typography.sm),
+                    .text_token(tokens.typography.xs),
             )
+            // The copy control closes the row, the way every card's does.
+            .child(div().flex_1())
             .when_some(prose_to_copy, |this, prose| {
                 this.child(
                     Clipboard::new((root_id.clone(), "copy-thinking"))
@@ -414,7 +421,7 @@ impl RenderOnce for Thinking {
             .when_some(self.trace.prose, |this, prose| {
                 this.child(
                     div()
-                        .text_token(tokens.typography.sm)
+                        .text_token(tokens.typography.xs)
                         .text_color(cx.theme().muted_foreground)
                         .child(TextView::markdown("prose", prose).selectable(true)),
                 )
@@ -470,7 +477,7 @@ impl RenderOnce for Thinking {
                         h_flex()
                             .items_center()
                             .gap(tokens.spacing.sm)
-                            .text_token(tokens.typography.sm)
+                            .text_token(tokens.typography.xs)
                             .text_color(cx.theme().foreground)
                             .child(
                                 div()
@@ -486,7 +493,7 @@ impl RenderOnce for Thinking {
                         this.child(
                             div()
                                 .pl(tokens.spacing.md)
-                                .text_token(tokens.typography.sm)
+                                .text_token(tokens.typography.xs)
                                 .text_color(cx.theme().muted_foreground)
                                 .child(
                                     TextView::markdown(("step-detail", ix), detail)
@@ -502,7 +509,7 @@ impl RenderOnce for Thinking {
             .when_some(failed.clone(), |this, reason| {
                 this.child(
                     div()
-                        .text_token(tokens.typography.sm)
+                        .text_token(tokens.typography.xs)
                         .text_color(cx.theme().danger)
                         .child(reason),
                 )

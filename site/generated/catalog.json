@@ -3,7 +3,7 @@
   "hero": {
     "slug": "guided-demo",
     "title": "Guided demo",
-    "height": 730,
+    "height": 726,
     "windowTitle": "Guided demo — gpui-ai",
     "siteOnly": true
   },
@@ -197,7 +197,7 @@
         "note": "One invocation: name, summary, status, and on expansion the input sent, the output returned or the reason it failed, with Allow and Deny where a person has to decide. Groups fold a burst of them."
       },
       "usage": "ToolCall::new(&call_progress)",
-      "height": 654,
+      "height": 650,
       "windowTitle": "Tool calls — gpui-ai",
       "variants": [],
       "events": [
@@ -258,7 +258,7 @@
         "note": "A reasoning trace that opens itself while it runs, follows the newest steps, holds the reader's place when they scroll back, and collapses to a single line when it settles."
       },
       "usage": "Thinking::new(\"reasoning\", &trace_progress)",
-      "height": 306,
+      "height": 260,
       "windowTitle": "Thinking — gpui-ai",
       "variants": [],
       "events": [

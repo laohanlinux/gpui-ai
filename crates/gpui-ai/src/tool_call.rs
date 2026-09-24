@@ -406,7 +406,7 @@ impl RenderOnce for ToolCall {
             .child(
                 div()
                     .flex_none()
-                    .text_token(tokens.typography.sm)
+                    .text_token(tokens.typography.xs)
                     .font_weight(FontWeight::MEDIUM)
                     .font_family(cx.theme().mono_font_family.clone())
                     .text_color(cx.theme().foreground)
@@ -418,7 +418,7 @@ impl RenderOnce for ToolCall {
                         .flex_1()
                         .min_w_0()
                         .truncate()
-                        .text_token(tokens.typography.sm)
+                        .text_token(tokens.typography.xs)
                         .text_color(cx.theme().muted_foreground)
                         .child(summary),
                 )
@@ -429,18 +429,19 @@ impl RenderOnce for ToolCall {
             .when_some(self.invocation.elapsed, |this, elapsed| {
                 this.child(meta(format_elapsed(elapsed), cx).flex_none())
             })
-            .when_some(output_to_copy, |this, output| {
-                this.child(
-                    Clipboard::new((root_id.clone(), "copy-output"))
-                        .tooltip("Copy output")
-                        .value(output),
-                )
-            })
             .child(badge)
             .when(interactive, |this| {
                 this.child(
                     crate::surface::disclosure_chevron(disclosure)
                         .text_color(cx.theme().muted_foreground),
+                )
+            })
+            // The copy control closes the row, the way every card's does.
+            .when_some(output_to_copy, |this, output| {
+                this.child(
+                    Clipboard::new((root_id.clone(), "copy-output"))
+                        .tooltip("Copy output")
+                        .value(output),
                 )
             });
         let header = match handler.clone() {
@@ -516,7 +517,7 @@ impl RenderOnce for ToolCall {
                         .gap(tokens.spacing.sm)
                         .child(
                             div()
-                                .text_token(tokens.typography.sm)
+                                .text_token(tokens.typography.xs)
                                 .text_color(cx.theme().foreground)
                                 .child("This call is waiting for your decision"),
                         )
@@ -608,7 +609,7 @@ impl RenderOnce for ToolCall {
                     }
                 };
                 let output = inset(cx)
-                    .text_token(tokens.typography.sm)
+                    .text_token(tokens.typography.xs)
                     .text_color(cx.theme().foreground)
                     .when(output_format == ToolOutputFormat::Plain, |this| {
                         this.font_family(cx.theme().mono_font_family.clone())
@@ -628,7 +629,7 @@ impl RenderOnce for ToolCall {
                             |_, _| OutputScroll::new(),
                         );
                         let (scroll_handle, follow) = output_scroll.update(cx, |state, _| {
-                            let follow = state.observe(revision, tokens.typography.sm.line_height);
+                            let follow = state.observe(revision, tokens.typography.xs.line_height);
                             (state.scroll.clone(), follow)
                         });
                         if live && follow {
@@ -682,7 +683,7 @@ impl RenderOnce for ToolCall {
                     h_flex()
                         .items_start()
                         .gap(tokens.spacing.sm)
-                        .text_token(tokens.typography.sm)
+                        .text_token(tokens.typography.xs)
                         .text_color(cx.theme().danger)
                         .child(
                             leading_glyph_slot(
@@ -886,10 +887,15 @@ impl RenderOnce for ToolGroup {
             }
         }
         let interactive = self.on_event.is_some();
+        // `w_full`, as on the thinking card: the toggle is a button, and a
+        // button centres what it is handed, so a content-width header would sit
+        // in the middle of the row.
         let header = h_flex()
+            .w_full()
+            .min_w_0()
             .items_center()
             .gap(tokens.spacing.sm)
-            .text_token(tokens.typography.sm)
+            .text_token(tokens.typography.xs)
             .text_color(cx.theme().muted_foreground)
             .when(interactive, |this| {
                 this.child(crate::surface::disclosure_chevron(disclosure))
@@ -903,7 +909,7 @@ impl RenderOnce for ToolGroup {
                 // carried by words, not by the highlight.
                 Shimmer::new((root_id.clone(), "title"), title.clone())
                     .active(self.active && !open)
-                    .text_token(tokens.typography.sm),
+                    .text_token(tokens.typography.xs),
             )
             .when(self.count > 0, |this| {
                 this.child(
