@@ -635,11 +635,15 @@ pub(crate) fn install(cx: &mut App) {
 /// standard role: rapid toggling resumes from the current sample rather than
 /// restarting, content changes leave a settled channel untouched, and
 /// reduced motion snaps to the target — GPUI's transition contract, not
-/// per-component policy. Callers cross-fade their body on the returned
-/// progress (opacity plus a small token-derived lift) while open. Closed
-/// bodies leave the tree immediately: opacity does not suppress focus,
-/// input, or accessibility. Headers can retain the closing transition.
-/// Callers never animate the body's height,
+/// per-component policy. The travel rides [`ease_in_out`], not the crate's
+/// entrance curve: this channel drives geometry, a body growing into the
+/// space it is about to occupy, and [`ease_out_quint`] spends two thirds of
+/// that travel in its first three frames — on a card-sized reveal that is a
+/// cut the reader sees, not a move. Callers cross-fade their body on the
+/// returned progress (opacity plus a small token-derived lift) while open.
+/// Closed bodies leave the tree immediately: opacity does not suppress
+/// focus, input, or accessibility. Headers can retain the closing
+/// transition. Callers never animate the body's height,
 /// because rich content re-measured per frame is the layout loop the motion
 /// plan forbids.
 ///
@@ -661,7 +665,7 @@ pub(crate) fn disclosure_progress(
     transition(
         id,
         target,
-        Transition::new(standard).ease(ease_out_quint),
+        Transition::new(standard).ease(ease_in_out),
         window,
         cx,
     )
