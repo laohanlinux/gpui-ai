@@ -454,11 +454,11 @@ impl RenderOnce for ToolCall {
             })
             // The copy control closes the row, the way every card's does.
             .when_some(output_to_copy, |this, output| {
-                this.child(
+                this.child(crate::surface::trailing_icon_control(
                     Clipboard::new((root_id.clone(), "copy-output"))
                         .tooltip("Copy output")
                         .value(output),
-                )
+                ))
             });
         let header = match handler.clone() {
             Some(handler) => {
@@ -979,25 +979,37 @@ impl RenderOnce for ToolGroup {
             .child(toggle)
             .when(showing, |this| {
                 // Only expanded groups expose their child controls.
+                let clip_debug_id = self.id.clone();
                 this.child(
-                    v_flex()
-                        .id((root_id, "calls"))
-                        .debug_selector({
-                            let calls_debug_id = self.id.clone();
-                            move || format!("tool-group-calls-{calls_debug_id}")
-                        })
-                        .role(Role::List)
-                        .aria_label("Tool calls")
-                        .w_full()
-                        .min_w_0()
-                        .gap(tokens.spacing.xs)
-                        .pl(tokens.spacing.md)
-                        .ml(tokens.spacing.xs)
-                        .border_l_1()
-                        .border_color(cx.theme().border)
-                        .opacity(disclosure_opacity)
-                        .top(tokens.spacing.xxs * (1.0 - disclosure) * crate::motion::travel(cx))
-                        .children(calls),
+                    crate::motion::disclosure_clip(
+                        ElementId::from((root_id.clone(), "disclosure-clip")),
+                        disclosure,
+                        // The calls grow into their own height and fade in, on
+                        // the same channel the group's own cards and the
+                        // thinking card use: a body that appeared at full
+                        // height behind a fade read as a snap however long the
+                        // fade took.
+                        v_flex()
+                            .id((root_id, "calls"))
+                            .debug_selector({
+                                let calls_debug_id = self.id.clone();
+                                move || format!("tool-group-calls-{calls_debug_id}")
+                            })
+                            .role(Role::List)
+                            .aria_label("Tool calls")
+                            .w_full()
+                            .min_w_0()
+                            .gap(tokens.spacing.xs)
+                            .pl(tokens.spacing.md)
+                            .ml(tokens.spacing.xs)
+                            .border_l_1()
+                            .border_color(cx.theme().border)
+                            .opacity(disclosure_opacity)
+                            .children(calls),
+                        window,
+                        cx,
+                    )
+                    .debug_selector(move || format!("tool-group-disclosure-clip-{clip_debug_id}")),
                 )
             })
             .refine_style(&self.style)
@@ -1045,6 +1057,11 @@ mod tests {
     use super::*;
     use gpui::{Context, Entity, Render, TestAppContext, VisualTestContext, px};
 
+    /// The group's own id in the fixtures below, spelled out because
+    /// `debug_bounds` takes a literal.
+    const CALLS: &str = "tool-group-calls-burst";
+    const CLIP: &str = "tool-group-disclosure-clip-burst";
+
     struct GroupProbe {
         open: bool,
         count: usize,
@@ -1085,6 +1102,70 @@ mod tests {
         cx.executor().advance_clock(Duration::from_secs(2));
         draw(cx);
         draw(cx);
+    }
+
+    /// Animated height of the disclosure clip, the box that grows into the
+    /// space an opening group is about to occupy.
+    fn clip_height(cx: &mut VisualTestContext) -> Pixels {
+        cx.debug_bounds(CLIP)
+            .expect("the group's disclosure clip should render")
+            .size
+            .height
+    }
+
+    /// Opening a settled group travels: the calls grow into their own height
+    /// across the disclosure clock rather than appearing at full size behind
+    /// a fade. Every disclosure in this library moves the same way.
+    #[gpui::test]
+    fn opening_grows_the_calls_into_the_height_they_will_occupy(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        let (probe, cx) = cx.add_window_view(|_, _| GroupProbe {
+            open: false,
+            count: 3,
+        });
+        let cx: &mut VisualTestContext = cx;
+        draw(cx);
+        settle(cx);
+        assert!(
+            cx.debug_bounds(CALLS).is_none(),
+            "the group has to rest closed for this to measure an opening"
+        );
+
+        probe.update(cx, |probe, cx| {
+            probe.open = true;
+            cx.notify();
+        });
+        // Two frames: the clip's first measured height arrives in prepaint, so
+        // one frame after the flip it is still held closed.
+        draw(cx);
+        draw(cx);
+        let start = clip_height(cx);
+
+        cx.executor()
+            .advance_clock(crate::motion::MotionTokens::DEFAULT.standard() / 2);
+        draw(cx);
+        let middle = clip_height(cx);
+
+        settle(cx);
+        let settled = clip_height(cx);
+        let natural = cx
+            .debug_bounds(CALLS)
+            .expect("the calls should render")
+            .size
+            .height;
+
+        assert!(
+            start < middle,
+            "the clip grows across the opening transition: {start:?} -> {middle:?}"
+        );
+        assert!(
+            middle < settled,
+            "the transition is still travelling at its midpoint: {middle:?} -> {settled:?}"
+        );
+        assert!(
+            (settled - natural).abs() < px(1.0),
+            "a settled open clip is the calls' own height: {settled:?} vs {natural:?}"
+        );
     }
 
     #[gpui::test]

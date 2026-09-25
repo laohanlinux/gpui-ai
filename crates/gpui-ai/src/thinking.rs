@@ -330,6 +330,7 @@ impl RenderOnce for Thinking {
             _ => None,
         };
         let trace_id = self.id.clone();
+        let clip_debug_id = self.id.clone();
         let prose_to_copy = self.trace.prose.clone();
         let body_max_height = self.body_max_height;
         let root_id = ElementId::from(self.id.clone());
@@ -389,11 +390,11 @@ impl RenderOnce for Thinking {
             // The copy control closes the row, the way every card's does.
             .child(div().flex_1())
             .when_some(prose_to_copy, |this, prose| {
-                this.child(
+                this.child(crate::surface::trailing_icon_control(
                     Clipboard::new((root_id.clone(), "copy-thinking"))
                         .tooltip("Copy thinking")
                         .value(prose),
-                )
+                ))
             });
         let toggle = match self.on_event {
             Some(handler) => composed_button(format!("{}-toggle", self.id), title.clone())
@@ -600,13 +601,20 @@ impl RenderOnce for Thinking {
             .gap(tokens.spacing.xs)
             .child(toggle)
             .when(showing, |this| {
-                // Opening content fades in; closed content leaves the tree
-                // immediately, including its selectable text and controls.
+                // Opening content grows into its own height and fades in, on
+                // the same channel the tool card uses: a body that appeared at
+                // full height and merely faded read as a snap however long the
+                // fade took. Closed content leaves the tree immediately,
+                // including its selectable text and controls.
                 this.child(
-                    div()
-                        .opacity(disclosure_opacity)
-                        .top(tokens.spacing.xxs * (1.0 - disclosure) * crate::motion::travel(cx))
-                        .child(body),
+                    crate::motion::disclosure_clip(
+                        ElementId::from((root_id.clone(), "disclosure-clip")),
+                        disclosure,
+                        div().opacity(disclosure_opacity).child(body),
+                        window,
+                        cx,
+                    )
+                    .debug_selector(move || format!("thinking-disclosure-clip-{clip_debug_id}")),
                 )
             })
             .refine_style(&self.style)
@@ -626,6 +634,7 @@ mod tests {
     const TRACE_ID: &str = "trace";
     const PREVIEW: &str = "thinking-live-preview-trace";
     const BODY: &str = "thinking-body-trace";
+    const CLIP: &str = "thinking-disclosure-clip-trace";
     /// Steps enough to overflow the preview's four-`xxl` cap several times.
     const STEPS: usize = 16;
 
@@ -840,6 +849,72 @@ mod tests {
         assert!(
             cx.debug_bounds(BODY).is_none(),
             "a settled closed disclosure unmounts its body"
+        );
+    }
+
+    /// Animated height of the disclosure clip, the box that grows into the
+    /// space an opening body is about to occupy.
+    fn clip_height(cx: &mut VisualTestContext) -> Pixels {
+        cx.debug_bounds(CLIP)
+            .expect("the disclosure clip should render")
+            .size
+            .height
+    }
+
+    /// Opening a settled trace travels: the body grows into its own height
+    /// across the disclosure clock rather than appearing at full size behind
+    /// a fade. That fade alone is what made this card read as a snap next to
+    /// the tool call, which grows.
+    #[gpui::test]
+    fn opening_grows_the_body_into_the_height_it_will_occupy(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        // A settled trace: a running one renders inside the live preview, so
+        // the clip's height would be the preview's cap rather than the body's
+        // own height, and the last assertion below would compare two things.
+        let (probe, cx) = cx.add_window_view(|_, _| TraceProbe {
+            state: ProgressState::Complete,
+            steps: 3,
+            open: false,
+        });
+        let cx: &mut VisualTestContext = cx;
+        draw(cx);
+        settle_disclosure(cx);
+        assert!(
+            cx.debug_bounds(BODY).is_none(),
+            "the trace has to rest closed for this to measure an opening"
+        );
+
+        set_open(&probe, cx, true);
+        // Two frames: the clip's first measured height arrives in prepaint, so
+        // one frame after the flip it is still held closed.
+        draw(cx);
+        draw(cx);
+        let start = clip_height(cx);
+
+        cx.executor()
+            .advance_clock(MotionTokens::DEFAULT.standard() / 2);
+        draw(cx);
+        let middle = clip_height(cx);
+
+        settle_disclosure(cx);
+        let settled = clip_height(cx);
+        let natural = cx
+            .debug_bounds(BODY)
+            .expect("the trace body should render")
+            .size
+            .height;
+
+        assert!(
+            start < middle,
+            "the clip grows across the opening transition: {start:?} -> {middle:?}"
+        );
+        assert!(
+            middle < settled,
+            "the transition is still travelling at its midpoint: {middle:?} -> {settled:?}"
+        );
+        assert!(
+            (settled - natural).abs() < px(1.0),
+            "a settled open clip is the body's own height: {settled:?} vs {natural:?}"
         );
     }
 

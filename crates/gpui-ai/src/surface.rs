@@ -373,6 +373,24 @@ pub(crate) fn disclosure_chevron(disclosure: f32) -> gpui_component::Icon {
     .rotate(gpui::percentage(0.25 * disclosure))
 }
 
+/// How far a trailing icon button's glyph sits inside its own edge.
+///
+/// gpui-component's icon button is a 20 px square with a 12 px icon centred in
+/// it, so a control dropped straight into a row shows its glyph four pixels
+/// inside the edge — while the row's title starts exactly on the leading one.
+/// That is what made every card's trailing copy read as slightly out of line
+/// with the text beside it.
+const TRAILING_ICON_INSET: f32 = 4.;
+
+/// Close a row with an icon control whose glyph lands on the row's edge.
+///
+/// The negative margin spends the button's own centring padding instead of the
+/// row's, which is the only lever a caller has: the inset belongs to the
+/// component's icon-button sizes, not to the card.
+pub(crate) fn trailing_icon_control(control: impl IntoElement) -> impl IntoElement {
+    div().mr(gpui::px(-TRAILING_ICON_INSET)).child(control)
+}
+
 /// Quiet supporting text: extra-small, muted.
 ///
 /// The most-used text role in the library, and the one that had no name —

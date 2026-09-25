@@ -549,6 +549,7 @@ impl RenderOnce for CodeDiff {
         let handler = self.on_event;
         let path = file.path.clone();
         let path_debug = path.clone();
+        let clip_debug_id = path.clone();
         let stats = file.stats();
         let label: SharedString = file.accessibility_label().into();
         let language: SharedString = file
@@ -638,7 +639,9 @@ impl RenderOnce for CodeDiff {
                             .child(format!("\u{2212}{}", stats.removed)),
                     ),
             )
-            .child(Clipboard::new((root_id.clone(), "copy")).value(file.to_unified()));
+            .child(crate::surface::trailing_icon_control(
+                Clipboard::new((root_id.clone(), "copy")).value(file.to_unified()),
+            ));
 
         let mut hunks = Vec::with_capacity(file.hunks.len());
         if showing {
@@ -670,13 +673,23 @@ impl RenderOnce for CodeDiff {
             .child(header)
             .when(showing, |this| {
                 // The body is selectable only while the disclosure is open.
+                // It grows into its own height and fades in, on the channel
+                // every other disclosure in this library uses: a body that
+                // appeared at full height behind a fade read as a snap
+                // however long the fade took.
                 this.child(
-                    div()
-                        .w_full()
-                        .min_w_0()
-                        .opacity(disclosure_opacity)
-                        .top(tokens.spacing.xxs * (1.0 - disclosure) * crate::motion::travel(cx))
-                        .children(hunks),
+                    crate::motion::disclosure_clip(
+                        ElementId::from((root_id.clone(), "disclosure-clip")),
+                        disclosure,
+                        div()
+                            .w_full()
+                            .min_w_0()
+                            .opacity(disclosure_opacity)
+                            .children(hunks),
+                        window,
+                        cx,
+                    )
+                    .debug_selector(move || format!("code-diff-disclosure-clip-{clip_debug_id}")),
                 )
             })
             .decoration_over(&mut decoration)
@@ -927,6 +940,97 @@ fn render_hunk(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::{Context, Pixels, Render, TestAppContext, VisualTestContext, px};
+
+    /// Debug id of the panel's animated disclosure clip. The selector is
+    /// spelled from the file's own path, which is what `CLIP` carries.
+    const CLIP: &str = "code-diff-disclosure-clip-src/pricing.rs";
+
+    struct DiffProbe {
+        open: bool,
+        file: DiffFile,
+    }
+
+    impl Render for DiffProbe {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .w(px(480.))
+                .h(px(600.))
+                .child(CodeDiff::new("diff", &self.file).open(self.open))
+        }
+    }
+
+    fn draw(cx: &mut VisualTestContext) {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+    }
+
+    /// Advances past the disclosure fade and draws the settled frame.
+    fn settle(cx: &mut VisualTestContext) {
+        cx.executor()
+            .advance_clock(crate::motion::MotionTokens::DEFAULT.standard() * 2);
+        draw(cx);
+        draw(cx);
+    }
+
+    /// Animated height of the disclosure clip, the box that grows into the
+    /// space an opening panel is about to occupy.
+    fn clip_height(cx: &mut VisualTestContext) -> Pixels {
+        cx.debug_bounds(CLIP)
+            .expect("the diff's disclosure clip should render")
+            .size
+            .height
+    }
+
+    /// Opening a settled panel travels: the hunks grow into their own height
+    /// across the disclosure clock rather than appearing at full size behind a
+    /// fade. Every disclosure in this library moves the same way.
+    #[gpui::test]
+    fn opening_grows_the_diff_into_the_height_it_will_occupy(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        let file = DiffFile::from_unified(PATCH).remove(0);
+        let (probe, cx) = cx.add_window_view(|_, _| DiffProbe { open: false, file });
+        let cx: &mut VisualTestContext = cx;
+        draw(cx);
+        settle(cx);
+        assert!(
+            cx.debug_bounds(CLIP).is_none(),
+            "the panel has to rest closed for this to measure an opening"
+        );
+
+        probe.update(cx, |probe, cx| {
+            probe.open = true;
+            cx.notify();
+        });
+        // Two frames: the clip's first measured height arrives in prepaint, so
+        // one frame after the flip it is still held closed.
+        draw(cx);
+        draw(cx);
+        let start = clip_height(cx);
+
+        cx.executor()
+            .advance_clock(crate::motion::MotionTokens::DEFAULT.standard() / 2);
+        draw(cx);
+        let middle = clip_height(cx);
+
+        settle(cx);
+        let settled = clip_height(cx);
+
+        assert!(
+            start < middle,
+            "the clip grows across the opening transition: {start:?} -> {middle:?}"
+        );
+        assert!(
+            middle < settled,
+            "the transition is still travelling at its midpoint: {middle:?} -> {settled:?}"
+        );
+
+        settle(cx);
+        assert_eq!(
+            clip_height(cx),
+            settled,
+            "a settled clip stops moving while the panel stays open"
+        );
+    }
 
     const PATCH: &str = "diff --git a/src/pricing.rs b/src/pricing.rs\n--- a/src/pricing.rs\n+++ b/src/pricing.rs\n@@ -1,4 +1,5 @@ fn unit_price\n fn unit_price(order: &Order) -> Money {\n-    order.total / order.units\n+    let units = order.units.max(1);\n+    order.total / units\n }\n \n@@ -10,3 +11,3 @@\n fn discount() -> f32 {\n-    0.05\n+    0.07\n }\n";
 

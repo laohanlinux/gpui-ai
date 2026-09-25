@@ -148,11 +148,11 @@ impl RenderOnce for CodeBlock {
                             .child(language.clone()),
                     )
                     .when(self.copyable, |this| {
-                        this.child(
+                        this.child(crate::surface::trailing_icon_control(
                             div()
                                 .flex_none()
                                 .child(Clipboard::new("copy").value(self.code.clone())),
-                        )
+                        ))
                     }),
             )
             .child(
